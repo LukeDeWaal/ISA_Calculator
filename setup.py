@@ -2,7 +2,7 @@ from distutils.core import setup
 setup(
   name = 'isacalc',         # How you named your package folder (MyLib)
   packages = ['isacalc'],   # Chose the same as "name"
-  version = 'v0.1',      # Start with a small number and increase it with every change you make
+  version = 'v0.3',      # Start with a small number and increase it with every change you make
   license='GNU GPLv3',        # Chose a license from here: https://help.github.com/articles/licensing-a-repository
   description = 'Standard International Atmosphere Calculator',   # Give a short description about your library
   author = 'Luke de Waal',                   # Type in your name
@@ -15,7 +15,7 @@ setup(
       ],
   classifiers=[
     'Development Status :: 3 - Alpha',      # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
-    'Intended Audience :: Aerospace and Aeronautical Engineers',      # Define that your audience are developers
+    'Intended Audience :: Developers',      # Define that your audience are developers
     'Topic :: Flight Mechanics :: Atmosphere Modelling',
     'License :: OSI Approved :: GNU GPLv3',   # Again, pick a license
     'Programming Language :: Python :: 3.6',
