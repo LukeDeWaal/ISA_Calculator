@@ -1,1 +1,0 @@
-from .main import get_atmosphere, calculate_at_h
