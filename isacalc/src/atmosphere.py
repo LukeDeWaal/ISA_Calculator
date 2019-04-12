@@ -36,7 +36,7 @@ class Atmosphere(object):
 
 
     @staticmethod
-    def __get_lapse(Hn, Tn) -> np.array:
+    def __get_lapse(Hn, Tn) -> list:
 
         types = []
 
