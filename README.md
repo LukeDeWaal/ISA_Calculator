@@ -8,7 +8,7 @@ Contents:
   
   
 With this module, it is possible to calculate, using the 1976 standard atmosphere model, the Temperature,
-Density and Pressure at any point in the atmosphere from 0 up to 120,000 [m].
+Density and Pressure at any point in the atmosphere from 0 up to 110,000 [m].
 
 This package is useful for Aerospace and Aeronautical Engineers who wish to run simulations.
 
