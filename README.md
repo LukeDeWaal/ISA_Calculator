@@ -17,6 +17,7 @@ To use this package, follow these steps:
     - Install isacalc
     - Import isacalc as isa
     - Define the Atmosphere Model: isa.get_atmosphere()
+    - Calculate all parameters at a cetain height: isa.calculate_at_h(h, atmosphere_model)
     - It calculates, at the defined height:
         - Temperature
         - Pressure
