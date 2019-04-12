@@ -1,5 +1,6 @@
 from isacalc.src.atmosphere import Atmosphere
 
+
 def get_atmosphere() -> Atmosphere:
     """
     Function to obtain the atmosphere model
