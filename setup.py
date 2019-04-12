@@ -1,10 +1,18 @@
 from distutils.core import setup
+
+
+def readme():
+  with open('README.md') as f:
+    return f.read()
+
+
 setup(
   name = 'isacalc',         # How you named your package folder (MyLib)
   packages = ['isacalc'],   # Chose the same as "name"
   version = 'v1.0.2',      # Start with a small number and increase it with every change you make
   license='GNU GPLv3',        # Chose a license from here: https://help.github.com/articles/licensing-a-repository
   description = 'Standard International Atmosphere Calculator',   # Give a short description about your library
+  long_description=readme(),
   author = 'Luke de Waal',                   # Type in your name
   author_email = 'lr.de.waal.01@gmail.com',      # Type in your E-Mail
   url = 'https://github.com/LukeDeWaal/ISA_Calculator',   # Provide either the link to your github or to your website

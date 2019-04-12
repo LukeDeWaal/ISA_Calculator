@@ -18,3 +18,9 @@ def calculate_at_h(h: float, atmosphere_model: Atmosphere = get_atmosphere()) ->
     return atmosphere_model.calculate(h)
 
 
+if __name__ == "__main__":
+
+    atmosphere = get_atmosphere()
+    h = 50000.0
+
+    h, T, P, d = calculate_at_h(h, atmosphere)
