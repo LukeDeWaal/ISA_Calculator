@@ -4,18 +4,52 @@ from .layers import NormalLayer, IsothermalLayer
 
 class Atmosphere(object):
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
 
-        self.__p0 = 101325.0
-        self.__d0 = 1.225
+        if kwargs:
+            # User Defined Atmosphere Model
+            self.__p0 = kwargs['p0']
+            self.__d0 = kwargs['d0']
 
-        self.__Nn = np.array(["Troposphere", "Tropopause", "Stratosphere", "Stratosphere", "Stratopause", "Mesosphere", "Mesosphere", "Mesopause", "Thermosphere", "Thermosphere", "Thermosphere"])
-        self.__Tn = np.array([288.15, 216.65, 216.65, 228.65, 270.65, 270.65, 214.65, 186.95, 186.95, 201.95, 251.95])
-        self.__Hn = np.array([0, 11000.0, 20000.0, 32000.0, 47000.0, 51000.0, 71000.0, 84852.0, 90000.0, 100000.0, 110000.0])
-        self.__Lt = np.array([1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1])
+            self.__Hn = kwargs['heights']
+            self.__Tn = kwargs['temp']
+
+            try:
+                self.__Nn = kwargs['names']
+
+            except KeyError:
+                self.__Nn = ['Noname']*len(self.__Hn)
+
+        else:
+            # Standard Values
+            self.__p0 = 101325.0
+            self.__d0 = 1.225
+
+            self.__Nn = ["Troposphere", "Tropopause", "Stratosphere", "Stratosphere", "Stratopause", "Mesosphere", "Mesosphere", "Mesopause", "Thermosphere", "Thermosphere", "Thermosphere"]
+            self.__Tn = [288.15, 216.65, 216.65, 228.65, 270.65, 270.65, 214.65, 186.95, 186.95, 201.95, 251.95]
+            self.__Hn = [0, 11000.0, 20000.0, 32000.0, 47000.0, 51000.0, 71000.0, 84852.0, 90000.0, 100000.0, 110000.0]
+
+        self.__Lt = self.__get_lapse(self.__Hn, self.__Tn)
 
         self.__layers = []
         self.__build()
+
+
+    @staticmethod
+    def __get_lapse(Hn, Tn) -> np.array:
+
+        types = []
+
+        for i in range(len(Hn)-1):
+            lapse = (Tn[i+1] - Tn[i])/(Hn[i+1] - Hn[i])
+
+            if lapse != 0:
+                types.append(1)
+
+            elif lapse == 0:
+                types.append(0)
+
+        return types
 
     def __build(self) -> None:
 
@@ -33,7 +67,7 @@ class Atmosphere(object):
                                     top_temperature=T_i,
                                     name=name)
 
-                _, _, p0, d0 = Layer.get_ceiling_values()
+                T0, p0, d0, a0, mu0 = Layer.get_ceiling_values()
 
             elif layer_type == 0:
 
@@ -44,7 +78,7 @@ class Atmosphere(object):
                                         max_height=h_i,
                                         name=name)
 
-                _, _, p0, d0 = Layer.get_ceiling_values()
+                T0, p0, d0, a0, mu0 = Layer.get_ceiling_values()
 
             else:
                 raise ValueError
@@ -53,9 +87,15 @@ class Atmosphere(object):
 
     def calculate(self, h) -> list:
 
+        if h > self.__Hn[-1] or h < self.__Hn[0]:
+            raise ValueError("Height is out of bounds")
+
         for idx in range(len(self.__layers)):
 
-            if self.__Hn[idx] <= h < self.__Hn[idx + 1]:
+            if h == self.__Hn[idx+1]:
+                return self.__layers[idx].get_ceiling_values()
+
+            elif self.__Hn[idx] < h < self.__Hn[idx + 1]:
                 return self.__layers[idx].get_intermediate_values(h)
 
             elif h >= self.__Hn[idx + 1]:

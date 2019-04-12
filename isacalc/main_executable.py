@@ -1,11 +1,12 @@
 from isacalc.src import Atmosphere
 
-def get_atmosphere() -> Atmosphere:
+def get_atmosphere(*args, **kwargs) -> Atmosphere:
     """
     Function to obtain the atmosphere model
+    :param kwargs: To define a custom atmosphere model
     :return: Atmospheric Model
     """
-    return Atmosphere()
+    return Atmosphere(*args, **kwargs)
 
 
 def calculate_at_h(h: float, atmosphere_model: Atmosphere = get_atmosphere()) -> list:
@@ -21,6 +22,6 @@ def calculate_at_h(h: float, atmosphere_model: Atmosphere = get_atmosphere()) ->
 if __name__ == "__main__":
 
     atmosphere = get_atmosphere()
-    h = 50000.0
+    h = 80000
 
-    h, T, P, d = calculate_at_h(h, atmosphere)
+    T, P, d, a, mu = calculate_at_h(h, atmosphere)
