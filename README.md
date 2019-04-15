@@ -5,12 +5,14 @@ Contents:
   - Atmospheric Model up to 110km
   - Accurate Calculations for Temperature, Pressure and Density
   - Custom defined atmospheric conditions
+  - Tabulate your data to save future computation time
+  - Save tabulated data in .csv or .xlsx files
   
   
 With this module, it is possible to calculate, using the 1976 standard atmosphere model, the Temperature,
 Density and Pressure at any point in the atmosphere from 0 up to 110,000 [m].
 
-This package is useful for Aerospace and Aeronautical Engineers who wish to run simulations.
+This package is useful for Aerospace and Aeronautical Engineers who wish to run simulations using atmospheric data.
 
 To use this package, follow these steps:
 

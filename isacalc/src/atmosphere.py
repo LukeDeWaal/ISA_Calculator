@@ -34,17 +34,35 @@ class Atmosphere(object):
         self.__layers = []
         self.__build()
 
+    def get_height_boundaries(self):
+        """
+        Method to calculate for which range the atmosphere model can be used
+        :return: Min, Max Height
+        """
+        return self.__Hn[0], self.__Hn[-1]
 
     @staticmethod
     def __get_lapse(Hn, Tn) -> list:
+        """
+        Static Method to calculate the layer types of all layers
+        :param Hn: Heights
+        :param Tn: Temperatures
+        :return: Layer Types
+        """
 
         types = []
 
         for i in range(len(Hn)-1):
-            lapse = (Tn[i+1] - Tn[i])/(Hn[i+1] - Hn[i])
+            delta_T = Tn[i+1] - Tn[i]
+
+            lapse = delta_T/(Hn[i+1] - Hn[i])
 
             if lapse != 0:
-                types.append(1)
+                if abs(delta_T) > 0.5:
+                    types.append(1)
+
+                else:
+                    types.append(0)
 
             elif lapse == 0:
                 types.append(0)
@@ -95,9 +113,12 @@ class Atmosphere(object):
             if h == self.__Hn[idx+1]:
                 return self.__layers[idx].get_ceiling_values()
 
+            elif h == self.__Hn[idx]:
+                return self.__layers[idx].get_base_values()
+
             elif self.__Hn[idx] < h < self.__Hn[idx + 1]:
                 return self.__layers[idx].get_intermediate_values(h)
 
-            elif h >= self.__Hn[idx + 1]:
+            elif h > self.__Hn[idx + 1]:
                 continue
 

@@ -7,7 +7,7 @@ class Layer(object):
     """
 
     def __init__(self, base_height: float, base_temperature: float, base_pressure: float, base_density: float,
-                 max_height: float, name: str = ''):
+                 max_height: float, name: str = '', **kwargs):
         """
         All Properties of a layer, excluding its type, which will be expressed
         by making separate objects for the different layers
@@ -18,9 +18,21 @@ class Layer(object):
         :param max_height:          Height up to which the layer extends
         """
 
-        self.g0 = 9.80665
-        self.R = 287.0
-        self.gamma = 1.4
+        if kwargs:
+            try:
+                self.g0 = kwargs['g0']
+                self.R = kwargs['R']
+                self.gamma = kwargs['gamma']
+
+            except KeyError:
+                self.g0 = 9.80665
+                self.R = 287.0
+                self.gamma = 1.4
+
+        else:
+            self.g0 = 9.80665
+            self.R = 287.0
+            self.gamma = 1.4
 
         self.__h0 = base_height
         self.__T0 = base_temperature
@@ -99,14 +111,16 @@ class IsothermalLayer(Layer):
                  base_pressure: float,
                  base_density: float,
                  max_height: float,
-                 name: str = ''):
+                 name: str = '',
+                 **kwargs):
 
         super().__init__(base_height=base_height,
                          base_temperature=base_temperature,
                          base_pressure=base_pressure,
                          base_density=base_density,
                          max_height=max_height,
-                         name=name)
+                         name=name,
+                         **kwargs)
 
     def get_ceiling_values(self) -> list:
         """
@@ -160,14 +174,16 @@ class NormalLayer(Layer):
                  base_density: float,
                  max_height: float,
                  top_temperature: float,
-                 name: str = ''):
+                 name: str = '',
+                 **kwargs):
 
         super().__init__(base_height=base_height,
                          base_temperature=base_temperature,
                          base_pressure=base_pressure,
                          base_density=base_density,
                          max_height=max_height,
-                         name=name)
+                         name=name,
+                         **kwargs)
 
         self.__T_top = top_temperature
 
