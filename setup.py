@@ -5,7 +5,8 @@ def readme():
   with open('README.txt') as f:
     return f.read()
 
-version = 'v1.2.2'
+
+version = 'v1.2.3'
 
 setup(
   name = 'isacalc',         # How you named your package folder (MyLib)
