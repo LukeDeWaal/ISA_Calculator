@@ -1,33 +1,38 @@
 import numpy as np
+import sys, os
 from .layers import NormalLayer, IsothermalLayer
+import json
 
+from enum import Enum
+
+class LayerType(Enum):
+    STANDARD = 1
+    ISOTHERMAL = 2
 
 class Atmosphere(object):
 
     def __init__(self, *args, **kwargs):
 
-        if kwargs:
-            # User Defined Atmosphere Model
-            self.__p0 = kwargs['p0']
-            self.__d0 = kwargs['d0']
+        with open("isa.json", "r") as file:
+            default_atmosphere = json.load(file)
 
-            self.__Hn = kwargs['heights']
-            self.__Tn = kwargs['temp']
+        self.__p0 = None
+        self.__d0 = None
+        self.__Nn = None
+        self.__Tn = None
+        self.__Hn = None
 
-            try:
-                self.__Nn = kwargs['names']
-
-            except KeyError:
-                self.__Nn = ['Noname']*len(self.__Hn)
-
-        else:
-            # Standard Values
-            self.__p0 = 101325.0
-            self.__d0 = 1.225
-
-            self.__Nn = ["Troposphere", "Tropopause", "Stratosphere", "Stratosphere", "Stratopause", "Mesosphere", "Mesosphere", "Mesopause", "Thermosphere", "Thermosphere", "Thermosphere"]
-            self.__Tn = [288.15, 216.65, 216.65, 228.65, 270.65, 270.65, 214.65, 186.95, 186.95, 201.95, 251.95]
-            self.__Hn = [0, 11000.0, 20000.0, 32000.0, 47000.0, 51000.0, 71000.0, 84852.0, 90000.0, 100000.0, 110000.0]
+        classname = type(self).__name__
+        for key in default_atmosphere.keys():
+            if key in kwargs and kwargs[key] is not None:
+                setattr(self, f"_{classname}__{key}", kwargs[key])
+            else:
+                if kwargs and key != 'Nn':
+                    raise ValueError(f"Failed to retrieve value for '{key}'")
+                elif kwargs and key == 'Nn':
+                    setattr(self, f"_{classname}__{key}", "Noname")
+                else:
+                    setattr(self, f"_{classname}__{key}", default_atmosphere[key])
 
         self.__Lt = self.__get_lapse(self.__Hn, self.__Tn)
 
@@ -59,23 +64,26 @@ class Atmosphere(object):
 
             if lapse != 0:
                 if abs(delta_T) > 0.5:
-                    types.append(1)
+                    types.append(LayerType.STANDARD)
 
                 else:
-                    types.append(0)
+                    types.append(LayerType.ISOTHERMAL)
 
             elif lapse == 0:
-                types.append(0)
+                types.append(LayerType.ISOTHERMAL)
 
         return types
 
     def __build(self) -> None:
+        """
+        Helper method to build the atmosphere object
+        """
 
         p0, d0 = self.__p0, self.__d0
 
         for name, h0, h_i, T0, T_i, layer_type in zip(self.__Nn, self.__Hn[:-1], self.__Hn[1:], self.__Tn[:-1], self.__Tn[1:], self.__Lt):
 
-            if layer_type == 1:
+            if layer_type == LayerType.STANDARD:
 
                 Layer = NormalLayer(base_height=h0,
                                     base_temperature=T0,
@@ -87,7 +95,7 @@ class Atmosphere(object):
 
                 T0, p0, d0, a0, mu0 = Layer.get_ceiling_values()
 
-            elif layer_type == 0:
+            elif layer_type == LayerType.ISOTHERMAL:
 
                 Layer = IsothermalLayer(base_height=h0,
                                         base_temperature=T0,
@@ -103,7 +111,12 @@ class Atmosphere(object):
 
             self.__layers.append(Layer)
 
-    def calculate(self, h) -> list:
+    def calculate(self, h: float) -> np.ndarray:
+        """
+        Calculate all atmospheric parameters at the given height
+        :param h:
+        :return:
+        """
 
         if h > self.__Hn[-1] or h < self.__Hn[0]:
             raise ValueError("Height is out of bounds")
@@ -122,3 +135,13 @@ class Atmosphere(object):
             elif h > self.__Hn[idx + 1]:
                 continue
 
+        raise ValueError("Failed to calculate")
+
+def calculate_at_h(h: float, atmosphere_model: Atmosphere = Atmosphere()) -> np.ndarray:
+    """
+    Function to calculate Temperature, Pressure and Density at h
+    :param h:                   Height in [m]
+    :param atmosphere_model:    Atmosphere Object
+    :return:                    [h, T, P, D]
+    """
+    return atmosphere_model.calculate(h)

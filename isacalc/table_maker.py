@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from isacalc.main_executable import get_atmosphere, calculate_at_h
+from isacalc.src import Atmosphere
 
 
 def __extract_desired_params(boolean_list: list, parameter_list: list):
@@ -25,7 +25,7 @@ def __extract_desired_params(boolean_list: list, parameter_list: list):
     return result
 
 
-def tabulate(height_range: tuple, atmosphere_model=get_atmosphere(), export_as: str = '', params: list = []):
+def tabulate(height_range: tuple, atmosphere_model: Atmosphere = Atmosphere(), export_as: str = None, params: list or str = None) -> pd.DataFrame:
     """
     Function to tabulate all the calculated data.
     For large projects where the ISA data needs to be calculated and accessed a lot, this will be
@@ -36,6 +36,12 @@ def tabulate(height_range: tuple, atmosphere_model=get_atmosphere(), export_as: 
     :param params:              List of all desired parameters to be recorded
     :return:                    Numpy Array of all values calculated [Height, Temp, Press, Dens, SOS, Visc]
     """
+
+    if params is None:
+        params = []
+
+    if isinstance(params, str) and params.lower() == 'all':
+        params = ['t', 'p', 'd', 'a', 'mu']
 
     param_names = ['Temperature [K]',
                    'Pressure [Pa]',
@@ -71,28 +77,28 @@ def tabulate(height_range: tuple, atmosphere_model=get_atmosphere(), export_as: 
 
     for idx, height in enumerate(heights):
 
-        parameters = __extract_desired_params(boolean_record_list, list(calculate_at_h(height, atmosphere_model=atmosphere_model)))
+        parameters = __extract_desired_params(boolean_record_list, list(atmosphere_model.calculate(height)))
         result[idx,:] = [height] + parameters
+
+    param_names = __extract_desired_params(boolean_record_list, param_names)
+
+    df_result = pd.DataFrame(data=result,
+                             index=range(0, table_shape[0]),
+                             columns=['Height [m]']+param_names)
 
     if export_as:
 
-        param_names = __extract_desired_params(boolean_record_list, param_names)
-
-        extension = export_as.split('.')[-1]
-
-        df_result = pd.DataFrame(data=result,
-                                 index=range(0, table_shape[0]),
-                                 columns=['Height [m]']+param_names)
+        extension = export_as.split('.')[-1].lower()
 
         if extension == 'csv':
-            df_result.to_csv(export_as)
+            df_result.to_csv(export_as, index=False)
 
         else:
             df_result.to_excel(export_as)
 
-    return result
+    return df_result
 
 
 if __name__ == "__main__":
 
-    table = tabulate((0, 110000, 100), export_as=r'test1.csv', params=['T', 'mu', 'p'])
+    table = tabulate((0, 10000, 100), export_as=r'test1.csv', params='all')

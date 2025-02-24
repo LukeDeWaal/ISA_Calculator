@@ -1,3 +1,7 @@
+import sys
+from copy import copy
+from typing import List, Tuple, Dict
+
 import numpy as np
 
 
@@ -18,21 +22,23 @@ class Layer(object):
         :param max_height:          Height up to which the layer extends
         """
 
-        if kwargs:
-            try:
-                self.g0 = kwargs['g0']
-                self.R = kwargs['R']
-                self.gamma = kwargs['gamma']
+        default_values = {
+            'g0': 9.80665,
+            'R': 287.0,
+            'gamma': 1.4
+        }
 
-            except KeyError:
-                self.g0 = 9.80665
-                self.R = 287.0
-                self.gamma = 1.4
+        self.g0 = None
+        self.R = None
+        self.gamma = None
 
-        else:
-            self.g0 = 9.80665
-            self.R = 287.0
-            self.gamma = 1.4
+        for key in default_values.keys():
+            if key in kwargs and kwargs[key] is not None:
+                setattr(self, key, kwargs[key])
+            else:
+                if kwargs:
+                    print(f"Failed to retrieve value for '{key}', resorting to default value: {default_values[key]}", file=sys.stderr)
+                setattr(self, key, default_values[key])
 
         self.__h0 = base_height
         self.__T0 = base_temperature
@@ -43,7 +49,7 @@ class Layer(object):
         self.__name = name
 
     @staticmethod
-    def sutherland_viscosity(T, mu0=1.716e-5, T0=273.15, S=110.4):
+    def sutherland_viscosity(T, mu0=1.716e-5, T0=273.15, S=110.4) -> float:
         """
         Method to calculate the dynamic viscosity of air
         :param T:   Temperature at which to calculate
@@ -55,20 +61,20 @@ class Layer(object):
         return mu0*(T/T0)**(1.5)*(T0+S)/(T+S)
 
 
-    def speed_of_sound(self, T):
+    def speed_of_sound(self, temp: float) -> float:
         """
         Method to calculate the speed of sound at a certain temperature
-        :param T: Temperature in K
+        :param temp: Temperature in K
         :return: speed of sound in m/s
         """
-        return np.sqrt(self.gamma*self.R*T)
+        return np.sqrt(self.gamma*self.R*temp)
 
-    def get_base_values(self) -> list:
+    def get_base_values(self) -> np.ndarray:
         """
         Getter function to obtain the hidden layer states
         :return: List of all base values
         """
-        return [self.__T0, self.__p0, self.__d0, self.speed_of_sound(self.__T0), self.sutherland_viscosity(self.__T0)]
+        return np.array([self.__T0, self.__p0, self.__d0, self.speed_of_sound(self.__T0), self.sutherland_viscosity(self.__T0)])
 
     def get_ceiling_height(self) -> float:
         """
@@ -84,24 +90,24 @@ class Layer(object):
         """
         return self.__h0
 
-    def get_name(self):
+    def get_name(self) -> str:
         """
         Method to return the name of the layer
         :return: name
         """
-        return self.__name
+        return copy(self.__name)
 
     def get_ceiling_values(self) -> None:
         """
         This method will be overridden
         """
-        pass
+        raise NotImplementedError("This method should be overridden")
 
     def get_intermediate_values(self, h) -> None:
         """
         This method will be overridden
         """
-        pass
+        raise NotImplementedError("This method should be overridden")
 
 
 class IsothermalLayer(Layer):
@@ -122,7 +128,7 @@ class IsothermalLayer(Layer):
                          name=name,
                          **kwargs)
 
-    def get_ceiling_values(self) -> list:
+    def get_ceiling_values(self) -> np.ndarray:
         """
         Method to get the temperature, pressure and density at the ceiling of the layer
         :return: temperature, pressure, density, speed of sound
@@ -138,9 +144,9 @@ class IsothermalLayer(Layer):
         a = self.speed_of_sound(T0)
         mu = self.sutherland_viscosity(T0)
 
-        return [T0, P, D, a, mu]
+        return np.array([T0, P, D, a, mu])
 
-    def get_intermediate_values(self, h) -> list:
+    def get_intermediate_values(self, h) -> np.ndarray:
         """
         Method to get the temperature, pressure and density at height h, between the base and ceiling of the layer
         :param h: Height at which to evaluate the temperature, pressure, density
@@ -149,11 +155,16 @@ class IsothermalLayer(Layer):
         h_max = self.get_ceiling_height()
         h0 = self.get_base_height()
 
+        ret = np.zeros((5,), dtype=float)
+
         if h > h_max:
-            raise ValueError
+            raise ValueError(f"Given height exceeds layer height: {round(h, 3)} > {round(h_max, 3)}")
+
+        if h < h0:
+            raise ValueError(f"Given height is too low for given layer:  {round(h, 3)} < {round(h0, 3)}")
 
         if h == h0:
-            return self.get_base_values()
+            return np.array(self.get_base_values())
 
         T0, P0, D0, a0, mu0 = self.get_base_values()
 
@@ -163,7 +174,7 @@ class IsothermalLayer(Layer):
         a = self.speed_of_sound(T0)
         mu = self.sutherland_viscosity(T0)
 
-        return [T0, P, D, a, mu]
+        return np.array([T0, P, D, a, mu])
 
 
 class NormalLayer(Layer):
@@ -187,7 +198,7 @@ class NormalLayer(Layer):
 
         self.__T_top = top_temperature
 
-    def get_ceiling_values(self) -> list:
+    def get_ceiling_values(self) -> np.ndarray:
         """
         Method to get the temperature, pressure and density at the ceiling of the layer
         :return: temperature, pressure, density, speed of sound
@@ -206,9 +217,9 @@ class NormalLayer(Layer):
         a = self.speed_of_sound(self.__T_top)
         mu = self.sutherland_viscosity(self.__T_top)
 
-        return [self.__T_top, P, D, a, mu]
+        return np.array([self.__T_top, P, D, a, mu])
 
-    def get_intermediate_values(self, h) -> list:
+    def get_intermediate_values(self, h) -> np.ndarray:
         """
         Method to get the temperature, pressure and density at height h, between the base and ceiling of the layer
         :param h: Height at which to evaluate the temperature, pressure, density
@@ -237,5 +248,5 @@ class NormalLayer(Layer):
         a = self.speed_of_sound(T)
         mu = self.sutherland_viscosity(T)
 
-        return [T, P, D, a, mu]
+        return np.array([T, P, D, a, mu])
 
