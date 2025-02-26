@@ -2,7 +2,7 @@ from distutils.core import setup
 
 
 def readme():
-  with open('README.txt') as f:
+  with open('README.md') as f:
     return f.read()
 
 

@@ -1,1 +1,1 @@
-from isacalc.table_maker import tabulate
+from isacalc.src import Atmosphere, NormalLayer, IsothermalLayer

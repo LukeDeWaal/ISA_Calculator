@@ -1,8 +1,14 @@
 import sys
 from copy import copy
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Union, Set, Optional
+from enum import Enum
 
 import numpy as np
+
+
+class LayerType(Enum):
+    STANDARD    = 1
+    ISOTHERMAL  = 2
 
 
 class Layer(object):
@@ -11,7 +17,7 @@ class Layer(object):
     """
 
     def __init__(self, base_height: float, base_temperature: float, base_pressure: float, base_density: float,
-                 max_height: float, name: str = '', **kwargs):
+                 max_height: float, name: str = '', g0: float = 9.80665, R: float = 287.0, gamma: float = 1.4, *args, **kwargs):
         """
         All Properties of a layer, excluding its type, which will be expressed
         by making separate objects for the different layers
@@ -22,23 +28,9 @@ class Layer(object):
         :param max_height:          Height up to which the layer extends
         """
 
-        default_values = {
-            'g0': 9.80665,
-            'R': 287.0,
-            'gamma': 1.4
-        }
-
-        self.g0 = None
-        self.R = None
-        self.gamma = None
-
-        for key in default_values.keys():
-            if key in kwargs and kwargs[key] is not None:
-                setattr(self, key, kwargs[key])
-            else:
-                if kwargs:
-                    print(f"Failed to retrieve value for '{key}', resorting to default value: {default_values[key]}", file=sys.stderr)
-                setattr(self, key, default_values[key])
+        self.g0 = g0
+        self.R = R
+        self.gamma = gamma
 
         self.__h0 = base_height
         self.__T0 = base_temperature
@@ -58,7 +50,7 @@ class Layer(object):
         :param S:   Sutherland Temperature
         :return:    Viscosity of air in kg/(m*s)
         """
-        return mu0*(T/T0)**(1.5)*(T0+S)/(T+S)
+        return mu0 * np.power((T/T0), 1.5) * (T0 + S)/(T + S)
 
 
     def speed_of_sound(self, temp: float) -> float:
@@ -242,8 +234,8 @@ class NormalLayer(Layer):
 
         T = T0 + L*(h - h0)
 
-        P = P0 * (T / T0) ** C
-        D = D0 * (T / T0) ** (C - 1)
+        P = P0 * np.power((T / T0) , C)
+        D = D0 * np.power((T / T0) , (C - 1))
 
         a = self.speed_of_sound(T)
         mu = self.sutherland_viscosity(T)
