@@ -2,11 +2,11 @@ from distutils.core import setup
 
 
 def readme():
-  with open('README.txt') as f:
+  with open('README.md') as f:
     return f.read()
 
 
-version = 'v1.2.3'
+version = 'v1.2.6'
 
 setup(
   name = 'isacalc',         # How you named your package folder (MyLib)
@@ -22,15 +22,15 @@ setup(
   download_url = f'https://github.com/LukeDeWaal/ISA_Calculator/archive/{version}.tar.gz',    # I explain this later on
   keywords = ['ISA','Aerospace','Aeronautical','Atmosphere'],   # Keywords that define your package best
   install_requires=[            # I get to this in a second
-          'numpy', 'pandas'
+          'numpy', 'pandas', 'tabulate'
       ],
   include_package_data=True,
   classifiers=[
-    'Development Status :: 3 - Alpha',      # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
+    'Development Status :: 4 - Beta',      # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
     'Intended Audience :: Developers',      # Define that your audience are developers
     'Topic :: Software Development :: Build Tools',
     'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',   # Again, pick a license
-    'Programming Language :: Python :: 3.6',
-    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
   ],
 )

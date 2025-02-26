@@ -1,38 +1,139 @@
-import numpy as np
-from .layers import NormalLayer, IsothermalLayer
+from typing import List, Set, Union, Iterable
 
+import numpy as np
+import sys, os
+
+import pandas as pd
+
+from .layers import NormalLayer, IsothermalLayer, LayerType
+import json
+
+param_names = {
+    'T': 'Temperature [K]',
+    'P': 'Pressure [Pa]',
+    'D': 'Density [kg/m^3]',
+    'A' : 'Speed of Sound [m/s]',
+    'M' : 'Dynamic Viscosity [kg/(m*s)]'
+}
 
 class Atmosphere(object):
 
     def __init__(self, *args, **kwargs):
 
-        if kwargs:
-            # User Defined Atmosphere Model
-            self.__p0 = kwargs['p0']
-            self.__d0 = kwargs['d0']
+        with open("isa.json", "r") as file:
+            default_atmosphere = json.load(file)
 
-            self.__Hn = kwargs['heights']
-            self.__Tn = kwargs['temp']
+        self.__g0 = None
+        self.__R = None
+        self.__gamma = None
 
-            try:
-                self.__Nn = kwargs['names']
+        self.__p0 = None
+        self.__d0 = None
+        self.__Nn = None
+        self.__Tn = None
+        self.__Hn = None
 
-            except KeyError:
-                self.__Nn = ['Noname']*len(self.__Hn)
-
-        else:
-            # Standard Values
-            self.__p0 = 101325.0
-            self.__d0 = 1.225
-
-            self.__Nn = ["Troposphere", "Tropopause", "Stratosphere", "Stratosphere", "Stratopause", "Mesosphere", "Mesosphere", "Mesopause", "Thermosphere", "Thermosphere", "Thermosphere"]
-            self.__Tn = [288.15, 216.65, 216.65, 228.65, 270.65, 270.65, 214.65, 186.95, 186.95, 201.95, 251.95]
-            self.__Hn = [0, 11000.0, 20000.0, 32000.0, 47000.0, 51000.0, 71000.0, 84852.0, 90000.0, 100000.0, 110000.0]
+        classname = type(self).__name__
+        for key in default_atmosphere.keys():
+            if key in kwargs and kwargs[key] is not None:
+                setattr(self, f"_{classname}__{key}", kwargs[key])
+            elif key in kwargs and kwargs[key] is None:
+                setattr(self, f"_{classname}__{key}", default_atmosphere[key])
+            else:
+                if kwargs and key == 'Nn':
+                    setattr(self, f"_{classname}__{key}", "Noname")
+                else:
+                    setattr(self, f"_{classname}__{key}", default_atmosphere[key])
 
         self.__Lt = self.__get_lapse(self.__Hn, self.__Tn)
 
         self.__layers = []
         self.__build()
+        self.__last_idx = 0
+
+    def calculate(self, h: float, *args, **kwargs) -> np.ndarray:
+        """
+        Calculate all atmospheric parameters at the given height
+        :param h:               Altitude in meters
+        :keyword start_index:   Start searching for the correct layer from given index.
+                                Can be used to speed up calculations by skipping search.
+                                Can result in ValueError if the relevant layer is skipped.
+        :return:    Numpy Array containing Temp, Press, Dens, SoundSpeed, DynVisc
+        """
+
+        start_idx = kwargs.get('start_index', 0)
+
+        if h > self.__Hn[-1] or h < self.__Hn[0]:
+            raise ValueError("Height is out of bounds")
+
+        for self.__last_idx in range(start_idx, len(self.__layers)):
+
+            if abs(h - self.__Hn[self.__last_idx +1]) < 1e-3:
+                return self.__layers[self.__last_idx ].get_ceiling_values()
+
+            elif abs(h - self.__Hn[self.__last_idx ]) < 1e-3:
+                return self.__layers[self.__last_idx ].get_base_values()
+
+            elif self.__Hn[self.__last_idx ] < h < self.__Hn[self.__last_idx  + 1]:
+                return self.__layers[self.__last_idx ].get_intermediate_values(h)
+
+            elif h > self.__Hn[self.__last_idx  + 1]:
+                continue
+
+        raise ValueError("Failed to calculate")
+
+    def tabulate(self, start: float, stop: float, step: float, export_as: str = None, params: Iterable[str] = None, fastcalc: bool = True) -> pd.DataFrame:
+        """
+        Generate a table of atmospheric data
+        :param start:       Table height start in meters
+        :param stop:        Table height stop in meters (inclusive)
+        :param step:        Table resolution in meters
+        :param export_as:   Write table to csv/xlsx file
+        :param params:      Set of parameters to tabulate with height (T/P/D/A/M or all)
+        :param fastcalc:    Speed up the iterations by caching the last layer index
+        :return:            Dataframe with the atmospheric table
+        """
+
+        if start is None or stop is None or step is None:
+            raise RuntimeError("start, stop and step cannot be None")
+
+        if params is None or (isinstance(params, str) and params.lower() == 'all'):
+            params = ['T', 'P', 'D', 'A', 'M']
+        else:
+            if isinstance(params, list) or (isinstance(params, str) and params.lower() != 'all'):
+                params = [p.upper() for p in params]
+
+        heights = np.arange(start=start, stop=stop+step, step=step)
+        table_shape = (len(heights), len(params)+1)
+        result = np.zeros(table_shape, dtype=float)
+
+        if fastcalc:
+            self.__last_idx = 0
+
+        for idx, height in enumerate(heights):
+
+            if fastcalc:
+                parameters = self.calculate(height, start_index=self.__last_idx)
+            else:
+                parameters = self.calculate(height)
+
+            result[idx,0] = height
+            result[idx,1:] = parameters
+
+        df_result = pd.DataFrame(data=result,
+                                 index=range(0, table_shape[0]),
+                                 columns=['Height [m]'] + [param_names[p] for p in params])
+
+        if export_as is not None:
+            extension = export_as.split('.')[-1].lower()
+
+            if extension == 'csv':
+                df_result.to_csv(export_as, index_label='Index')
+
+            else:
+                df_result.to_excel(export_as, index_label='Index')
+
+        return df_result
 
     def get_height_boundaries(self):
         """
@@ -59,66 +160,57 @@ class Atmosphere(object):
 
             if lapse != 0:
                 if abs(delta_T) > 0.5:
-                    types.append(1)
+                    types.append(LayerType.STANDARD)
 
                 else:
-                    types.append(0)
+                    types.append(LayerType.ISOTHERMAL)
 
             elif lapse == 0:
-                types.append(0)
+                types.append(LayerType.ISOTHERMAL)
 
         return types
 
     def __build(self) -> None:
+        """
+        Helper method to build the atmosphere object
+        """
 
         p0, d0 = self.__p0, self.__d0
 
         for name, h0, h_i, T0, T_i, layer_type in zip(self.__Nn, self.__Hn[:-1], self.__Hn[1:], self.__Tn[:-1], self.__Tn[1:], self.__Lt):
 
-            if layer_type == 1:
+            if layer_type == LayerType.STANDARD:
 
-                Layer = NormalLayer(base_height=h0,
+                layer = NormalLayer(base_height=h0,
                                     base_temperature=T0,
                                     base_pressure=p0,
                                     base_density=d0,
                                     max_height=h_i,
                                     top_temperature=T_i,
-                                    name=name)
+                                    name=name,
+                                    g0=self.__g0,
+                                    R=self.__R,
+                                    gamma=self.__gamma)
 
-                T0, p0, d0, a0, mu0 = Layer.get_ceiling_values()
+                T0, p0, d0, a0, mu0 = layer.get_ceiling_values()
 
-            elif layer_type == 0:
+            elif layer_type == LayerType.ISOTHERMAL:
 
-                Layer = IsothermalLayer(base_height=h0,
+                layer = IsothermalLayer(base_height=h0,
                                         base_temperature=T0,
                                         base_pressure=p0,
                                         base_density=d0,
                                         max_height=h_i,
-                                        name=name)
+                                        name=name,
+                                        g0=self.__g0,
+                                        R=self.__R,
+                                        gamma=self.__gamma)
 
-                T0, p0, d0, a0, mu0 = Layer.get_ceiling_values()
+                T0, p0, d0, a0, mu0 = layer.get_ceiling_values()
 
             else:
                 raise ValueError
 
-            self.__layers.append(Layer)
+            self.__layers.append(layer)
 
-    def calculate(self, h) -> list:
-
-        if h > self.__Hn[-1] or h < self.__Hn[0]:
-            raise ValueError("Height is out of bounds")
-
-        for idx in range(len(self.__layers)):
-
-            if h == self.__Hn[idx+1]:
-                return self.__layers[idx].get_ceiling_values()
-
-            elif h == self.__Hn[idx]:
-                return self.__layers[idx].get_base_values()
-
-            elif self.__Hn[idx] < h < self.__Hn[idx + 1]:
-                return self.__layers[idx].get_intermediate_values(h)
-
-            elif h > self.__Hn[idx + 1]:
-                continue
-
+        self.__layers = np.array(self.__layers)
