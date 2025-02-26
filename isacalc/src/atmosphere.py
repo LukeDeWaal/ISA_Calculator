@@ -1,12 +1,11 @@
 from typing import List, Set, Union, Iterable
 
 import numpy as np
-import sys, os
+import sys, os, json
 
 import pandas as pd
 
 from .layers import NormalLayer, IsothermalLayer, LayerType
-import json
 
 param_names = {
     'T': 'Temperature [K]',
@@ -15,6 +14,15 @@ param_names = {
     'A' : 'Speed of Sound [m/s]',
     'M' : 'Dynamic Viscosity [kg/(m*s)]'
 }
+
+default_atmosphere = None
+
+import importlib.resources
+with importlib.resources.open_text("isacalc", "isa.json") as file:
+    default_atmosphere = json.load(file)
+
+
+
 
 class Atmosphere(object):
 
@@ -29,8 +37,6 @@ class Atmosphere(object):
         self.__Nn = None
         self.__Tn = None
         self.__Hn = None
-
-        default_atmosphere = self.__load_default()
 
         classname = type(self).__name__
         for key in default_atmosphere.keys():
