@@ -6,7 +6,7 @@ def readme():
     return f.read()
 
 
-version = 'v1.2.6'
+version = 'v1.0'
 
 setup(
   name = 'isacalc',         # How you named your package folder (MyLib)
