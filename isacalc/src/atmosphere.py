@@ -1,3 +1,4 @@
+from copy import copy
 from typing import List, Set, Union, Iterable
 
 import numpy as np
@@ -27,6 +28,20 @@ with importlib.resources.open_text("isacalc", "isa.json") as file:
 class Atmosphere(object):
 
     def __init__(self, *args, **kwargs):
+        """
+        Atmosphere Object.
+
+        :keyword g0     :   gravitational acceleration in m/s^2
+        :keyword R      :   universal gas constant for air in J/(kg*K)
+        :keyword gamma  :   specific-heat ratio for air
+        :keyword p0     :   base pressure in Pa
+        :keyword d0     :   base density in kg / m^3
+        :keyword Tn     :   list of temperatures in K
+        :keyword Hn     :   heights corresponding to given temperatures
+        :keyword Nn     :   list of layer names
+
+        :keyword infile :   path to JSON file containing atmospheric data
+        """
 
         self.__g0 = None
         self.__R = None
@@ -38,23 +53,72 @@ class Atmosphere(object):
         self.__Tn = None
         self.__Hn = None
 
+        self.__is_standard_atmosphere = True
+
         classname = type(self).__name__
-        for key in default_atmosphere.keys():
-            if key in kwargs and kwargs[key] is not None:
-                setattr(self, f"_{classname}__{key}", kwargs[key])
-            elif key in kwargs and kwargs[key] is None:
-                setattr(self, f"_{classname}__{key}", default_atmosphere[key])
-            else:
-                if kwargs and key == 'Nn':
-                    setattr(self, f"_{classname}__{key}", "Noname")
-                else:
+        infile = kwargs.get('infile', None)
+        if infile is not None:
+            self.__is_standard_atmosphere = False
+            with open(infile, "r") as file:
+                atmosphere = json.load(file)
+            for key in atmosphere.keys():
+                setattr(self, f"_{classname}__{key}", atmosphere[key])
+
+        else:
+            for key in default_atmosphere.keys():
+                if key in kwargs and kwargs[key] is not None:
+                    self.__is_standard_atmosphere = False
+                    setattr(self, f"_{classname}__{key}", kwargs[key])
+                elif key in kwargs and kwargs[key] is None:
                     setattr(self, f"_{classname}__{key}", default_atmosphere[key])
+                else:
+                    if key in kwargs and key == 'Nn' and kwargs[key] is None:
+                        setattr(self, f"_{classname}__{key}", "Noname")
+                    else:
+                        setattr(self, f"_{classname}__{key}", default_atmosphere[key])
 
         self.__Lt = self.__get_lapse(self.__Hn, self.__Tn)
 
         self.__layers = []
         self.__build()
         self.__last_idx = 0
+
+
+    def __len__(self):
+        """
+        :return: Number of layers
+        """
+        return len(self.__layers)
+
+    def __getitem__(self, idx):
+        """
+        Return Layer object at idx
+        :param idx: index
+        :return: layer object
+        """
+        return self.__layers[idx]
+
+    def __str__(self):
+        """
+        Used for pretty-printing object info
+        :return:
+        """
+        res = f"{'Standard' if self.__is_standard_atmosphere else 'Custom'} Atmosphere ({len(self)} layers):"
+        res += f"\n * g0 = {self.__g0:<10.6f} [m/s^2]"
+        res += f"\n * R  = {self.__R:<10.6f} [J/(kg*K)]"
+        res += f"\n * y  = {self.__gamma:<10.6f} [-]"
+        res += f"\n * p0 = {self.__p0:<10.3f} [Pa]"
+        res += f"\n * d0 = {self.__d0:<10.6f} [kg/m^3]"
+        for layer in self.__layers:
+            res += '\n' + str(layer)
+        return res
+
+    def __repr__(self):
+        """
+        Used for pretty-printing object info
+        :return:
+        """
+        return self.__str__()
 
     def calculate(self, h: float, *args, **kwargs) -> np.ndarray:
         """
@@ -71,16 +135,16 @@ class Atmosphere(object):
         if h > self.__Hn[-1] or h < self.__Hn[0]:
             raise ValueError("Height is out of bounds")
 
-        for self.__last_idx in range(start_idx, len(self.__layers)):
+        for self.__last_idx in range(start_idx, len(self)):
 
             if abs(h - self.__Hn[self.__last_idx +1]) < 1e-3:
-                return self.__layers[self.__last_idx ].get_ceiling_values()
+                return self.__layers[self.__last_idx ].ceiling_values
 
             elif abs(h - self.__Hn[self.__last_idx ]) < 1e-3:
-                return self.__layers[self.__last_idx ].get_base_values()
+                return self.__layers[self.__last_idx ].base_values
 
             elif self.__Hn[self.__last_idx ] < h < self.__Hn[self.__last_idx  + 1]:
-                return self.__layers[self.__last_idx ].get_intermediate_values(h)
+                return self.__layers[self.__last_idx ].get_values_at(h)
 
             elif h > self.__Hn[self.__last_idx  + 1]:
                 continue
@@ -140,7 +204,48 @@ class Atmosphere(object):
 
         return df_result
 
-    def get_height_boundaries(self):
+    @property
+    def temperatures(self) -> np.ndarray:
+        """
+        Array of temperatures along layers
+        :return:
+        """
+        return np.array(self.__Tn)
+
+    @property
+    def altitudes(self) -> np.ndarray:
+        """
+        Array of altitudes of layers
+        :return:
+        """
+        return np.array(self.__Hn)
+
+    @property
+    def base_values(self) -> dict:
+        """
+        Dictionary with the atmospheric base values
+        :return:
+        """
+        return {
+            'p0': self.__p0,
+            'd0': self.__d0,
+            'T0': self.__Tn[0]
+        }
+
+    @property
+    def constants(self) -> dict:
+        """
+        Dictionary of physical constants of atmosphere
+        :return:
+        """
+        return {
+            'g0': self.__g0,
+            'R': self.__R,
+            'gamma': self.__gamma
+        }
+
+    @property
+    def height_boundaries(self):
         """
         Method to calculate for which range the atmosphere model can be used
         :return: Min, Max Height
@@ -197,7 +302,7 @@ class Atmosphere(object):
                                     R=self.__R,
                                     gamma=self.__gamma)
 
-                T0, p0, d0, a0, mu0 = layer.get_ceiling_values()
+                T0, p0, d0, a0, mu0 = layer.ceiling_values
 
             elif layer_type == LayerType.ISOTHERMAL:
 
@@ -211,7 +316,7 @@ class Atmosphere(object):
                                         R=self.__R,
                                         gamma=self.__gamma)
 
-                T0, p0, d0, a0, mu0 = layer.get_ceiling_values()
+                T0, p0, d0, a0, mu0 = layer.ceiling_values
 
             else:
                 raise ValueError
@@ -219,20 +324,3 @@ class Atmosphere(object):
             self.__layers.append(layer)
 
         self.__layers = np.array(self.__layers)
-
-    @staticmethod
-    def __load_default() -> dict:
-        try:
-            from importlib import resources as impresources
-        except ImportError:
-            # Try backported to PY<37 `importlib_resources`.
-            import importlib_resources as impresources
-
-        try:
-            inp_file = (impresources.files('isacalc.data') / 'isa.json')
-            with inp_file.open("r") as file:  # or "rt" as text file with universal newlines
-                default_atmosphere = json.load(file)
-        except AttributeError:
-            # Python < PY3.9, fall back to method deprecated in PY3.11.
-            default_atmosphere = json.load(impresources.open_text('isacalc.data', 'isa.json'))
-        return default_atmosphere

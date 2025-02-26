@@ -6,7 +6,7 @@ def readme():
     return f.read()
 
 
-version = 'v1.3.2'
+version = 'v1.3.3'
 
 setup(
   name = 'isacalc',         # How you named your package folder (MyLib)
@@ -16,7 +16,7 @@ setup(
   license='GNU GPLv3',        # Chose a license from here: https://help.github.com/articles/licensing-a-repository
   description = 'Standard International Atmosphere Calculator',   # Give a short description about your library
   long_description=readme(),
-  long_description_content_type='text/plain',
+  long_description_content_type='text/markdown',
   author = 'Luke de Waal',                   # Type in your name
   author_email = 'lr.de.waal.01@gmail.com',      # Type in your E-Mail
   url = 'https://github.com/LukeDeWaal/ISA_Calculator',   # Provide either the link to your github or to your website

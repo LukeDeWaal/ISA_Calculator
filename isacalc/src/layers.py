@@ -38,7 +38,17 @@ class Layer(object):
         self.__d0 = base_density
         self.__h_max = max_height
 
-        self.__name = name
+        if name:
+            self.__name = name
+        else:
+            self.__name = "unnamed"
+
+    def __str__(self):
+        """
+        Used for pretty-printing object info
+        :return:
+        """
+        return f"{self.__name:<16s} | {self.__h0:10.3f} - {self.__h_max:10.3f} [m] | {self.base_values[0]:6.2f} - {self.ceiling_values[0]:6.2f} [K]"
 
     @staticmethod
     def sutherland_viscosity(T, mu0=1.716e-5, T0=273.15, S=110.4) -> float:
@@ -61,41 +71,46 @@ class Layer(object):
         """
         return np.sqrt(self.gamma*self.R*temp)
 
-    def get_base_values(self) -> np.ndarray:
+    @property
+    def base_values(self) -> np.ndarray:
         """
         Getter function to obtain the hidden layer states
         :return: List of all base values
         """
         return np.array([self.__T0, self.__p0, self.__d0, self.speed_of_sound(self.__T0), self.sutherland_viscosity(self.__T0)])
 
-    def get_ceiling_height(self) -> float:
+    @property
+    def ceiling_height(self) -> float:
         """
         Getter function to obtain the maximum height of the layer
         :return: Maximum height
         """
         return self.__h_max
 
-    def get_base_height(self) -> float:
+    @property
+    def base_height(self) -> float:
         """
         Getter function to obtain the height at which the layer starts
         :return: Base Height
         """
         return self.__h0
 
-    def get_name(self) -> str:
+    @property
+    def name(self) -> str:
         """
         Method to return the name of the layer
         :return: name
         """
         return copy(self.__name)
 
-    def get_ceiling_values(self) -> None:
+    @property
+    def ceiling_values(self) -> None:
         """
         This method will be overridden
         """
         raise NotImplementedError("This method should be overridden")
 
-    def get_intermediate_values(self, h) -> None:
+    def get_values_at(self, h) -> None:
         """
         This method will be overridden
         """
@@ -120,15 +135,16 @@ class IsothermalLayer(Layer):
                          name=name,
                          **kwargs)
 
-    def get_ceiling_values(self) -> np.ndarray:
+    @property
+    def ceiling_values(self) -> np.ndarray:
         """
         Method to get the temperature, pressure and density at the ceiling of the layer
         :return: temperature, pressure, density, speed of sound
         """
 
-        T0, P0, D0, a0, mu0 = self.get_base_values()
-        h = self.get_ceiling_height()
-        h0 = self.get_base_height()
+        T0, P0, D0, a0, mu0 = self.base_values
+        h = self.ceiling_height
+        h0 = self.base_height
 
         P = P0 * np.exp(-self.g0 / (self.R * T0) * (h - h0))
         D = D0 * np.exp(-self.g0 / (self.R * T0) * (h - h0))
@@ -138,14 +154,14 @@ class IsothermalLayer(Layer):
 
         return np.array([T0, P, D, a, mu])
 
-    def get_intermediate_values(self, h) -> np.ndarray:
+    def get_values_at(self, h) -> np.ndarray:
         """
         Method to get the temperature, pressure and density at height h, between the base and ceiling of the layer
         :param h: Height at which to evaluate the temperature, pressure, density
         :return: temperature, pressure, density, speed of sound
         """
-        h_max = self.get_ceiling_height()
-        h0 = self.get_base_height()
+        h_max = self.ceiling_height
+        h0 = self.base_height
 
         ret = np.zeros((5,), dtype=float)
 
@@ -156,9 +172,9 @@ class IsothermalLayer(Layer):
             raise ValueError(f"Given height is too low for given layer:  {round(h, 3)} < {round(h0, 3)}")
 
         if h == h0:
-            return np.array(self.get_base_values())
+            return np.array(self.base_values)
 
-        T0, P0, D0, a0, mu0 = self.get_base_values()
+        T0, P0, D0, a0, mu0 = self.base_values
 
         P = P0 * np.exp(-self.g0 / (self.R * T0) * (h - h0))
         D = D0 * np.exp(-self.g0 / (self.R * T0) * (h - h0))
@@ -190,15 +206,16 @@ class NormalLayer(Layer):
 
         self.__T_top = top_temperature
 
-    def get_ceiling_values(self) -> np.ndarray:
+    @property
+    def ceiling_values(self) -> np.ndarray:
         """
         Method to get the temperature, pressure and density at the ceiling of the layer
         :return: temperature, pressure, density, speed of sound
         """
 
-        T0, P0, D0, a0, mu0 = self.get_base_values()
-        h = self.get_ceiling_height()
-        h0 = self.get_base_height()
+        T0, P0, D0, a0, mu0 = self.base_values
+        h = self.ceiling_height
+        h0 = self.base_height
 
         L = (self.__T_top - T0) / (h - h0)
         C = -self.g0 / (L * self.R)  # To Simplify and shorten code we define the following expression for the exponent
@@ -211,23 +228,23 @@ class NormalLayer(Layer):
 
         return np.array([self.__T_top, P, D, a, mu])
 
-    def get_intermediate_values(self, h) -> np.ndarray:
+    def get_values_at(self, h) -> np.ndarray:
         """
         Method to get the temperature, pressure and density at height h, between the base and ceiling of the layer
         :param h: Height at which to evaluate the temperature, pressure, density
         :return: temperature, pressure, density, speed of sound
         """
 
-        h_max = self.get_ceiling_height()
-        h0 = self.get_base_height()
+        h_max = self.ceiling_height
+        h0 = self.base_height
 
         if h > h_max:
             raise ValueError
 
         if h == h0:
-            return self.get_base_values()
+            return self.base_values
 
-        T0, P0, D0, a0, mu0 = self.get_base_values()
+        T0, P0, D0, a0, mu0 = self.base_values
 
         L = (self.__T_top - T0) / (h_max - h0)
         C = -self.g0 / (L * self.R)  # To Simplify and shorten code we define the following expression for the exponent
