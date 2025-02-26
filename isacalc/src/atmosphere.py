@@ -20,22 +20,6 @@ class Atmosphere(object):
 
     def __init__(self, *args, **kwargs):
 
-        try:
-            from importlib import resources as impresources
-        except ImportError:
-            # Try backported to PY<37 `importlib_resources`.
-            import importlib_resources as impresources
-
-        from .. import data
-
-        try:
-            inp_file = (impresources.files(data) / 'isa.json')
-            with inp_file.open("rt") as file:  # or "rt" as text file with universal newlines
-                default_atmosphere = json.load(file)
-        except AttributeError:
-            # Python < PY3.9, fall back to method deprecated in PY3.11.
-            default_atmosphere = json.load(impresources.open_text(data, 'isa.json'))
-
         self.__g0 = None
         self.__R = None
         self.__gamma = None
@@ -45,6 +29,8 @@ class Atmosphere(object):
         self.__Nn = None
         self.__Tn = None
         self.__Hn = None
+
+        default_atmosphere = self.__load_default()
 
         classname = type(self).__name__
         for key in default_atmosphere.keys():
@@ -227,3 +213,20 @@ class Atmosphere(object):
             self.__layers.append(layer)
 
         self.__layers = np.array(self.__layers)
+
+    @staticmethod
+    def __load_default() -> dict:
+        try:
+            from importlib import resources as impresources
+        except ImportError:
+            # Try backported to PY<37 `importlib_resources`.
+            import importlib_resources as impresources
+
+        try:
+            inp_file = (impresources.files('isacalc.data') / 'isa.json')
+            with inp_file.open("r") as file:  # or "rt" as text file with universal newlines
+                default_atmosphere = json.load(file)
+        except AttributeError:
+            # Python < PY3.9, fall back to method deprecated in PY3.11.
+            default_atmosphere = json.load(impresources.open_text('isacalc.data', 'isa.json'))
+        return default_atmosphere
