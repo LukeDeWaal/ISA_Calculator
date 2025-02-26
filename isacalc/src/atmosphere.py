@@ -20,8 +20,21 @@ class Atmosphere(object):
 
     def __init__(self, *args, **kwargs):
 
-        with open("isa.json", "r") as file:
-            default_atmosphere = json.load(file)
+        try:
+            from importlib import resources as impresources
+        except ImportError:
+            # Try backported to PY<37 `importlib_resources`.
+            import importlib_resources as impresources
+
+        from .. import data
+
+        try:
+            inp_file = (impresources.files(data) / 'isa.json')
+            with inp_file.open("rt") as file:  # or "rt" as text file with universal newlines
+                default_atmosphere = json.load(file)
+        except AttributeError:
+            # Python < PY3.9, fall back to method deprecated in PY3.11.
+            default_atmosphere = json.load(impresources.open_text(data, 'isa.json'))
 
         self.__g0 = None
         self.__R = None
