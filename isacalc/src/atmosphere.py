@@ -6,7 +6,7 @@ import sys, os, json
 
 import pandas as pd
 
-from .layers import NormalLayer, IsothermalLayer, LayerType
+from .layers import NormalLayer, IsothermalLayer, LayerType, ptype
 
 param_names = {
     'T': 'Temperature [K]',
@@ -21,8 +21,6 @@ default_atmosphere = None
 import importlib.resources
 with importlib.resources.open_text("isacalc", "isa.json") as file:
     default_atmosphere = json.load(file)
-
-
 
 
 class Atmosphere(object):
@@ -43,45 +41,27 @@ class Atmosphere(object):
         :keyword infile :   path to JSON file containing atmospheric data
         """
 
-        self.__g0 = None
-        self.__R = None
-        self.__gamma = None
+        self.__g0: float = None
+        self.__R: float = None
+        self.__gamma: float = None
 
-        self.__p0 = None
-        self.__d0 = None
-        self.__Nn = None
-        self.__Tn = None
-        self.__Hn = None
+        self.__p0: float = None
+        self.__d0: float = None
+        self.__Nn: float = None
+        self.__Tn: np.ndarray = None
+        self.__Hn: np.ndarray = None
 
-        self.__is_standard_atmosphere = True
+        self.__is_standard_atmosphere: bool = True
 
-        classname = type(self).__name__
-        infile = kwargs.get('infile', None)
-        if infile is not None:
-            self.__is_standard_atmosphere = False
-            with open(infile, "r") as file:
-                atmosphere = json.load(file)
-            for key in atmosphere.keys():
-                setattr(self, f"_{classname}__{key}", atmosphere[key])
+        self.__load(**kwargs)
 
-        else:
-            for key in default_atmosphere.keys():
-                if key in kwargs and kwargs[key] is not None:
-                    self.__is_standard_atmosphere = False
-                    setattr(self, f"_{classname}__{key}", kwargs[key])
-                elif key in kwargs and kwargs[key] is None:
-                    setattr(self, f"_{classname}__{key}", default_atmosphere[key])
-                else:
-                    if key in kwargs and key == 'Nn' and kwargs[key] is None:
-                        setattr(self, f"_{classname}__{key}", "Noname")
-                    else:
-                        setattr(self, f"_{classname}__{key}", default_atmosphere[key])
+        self.__Lt: np.ndarray = self.__get_lapse(self.__Hn, self.__Tn)
 
-        self.__Lt = self.__get_lapse(self.__Hn, self.__Tn)
-
-        self.__layers = []
+        self.__layers: np.ndarray = None
         self.__build()
-        self.__last_idx = 0
+
+        self.__last_calc_idx = 0
+        self.__last_altimeter_idx = 0
 
 
     def __len__(self):
@@ -127,7 +107,7 @@ class Atmosphere(object):
         :keyword start_index:   Start searching for the correct layer from given index.
                                 Can be used to speed up calculations by skipping search.
                                 Can result in ValueError if the relevant layer is skipped.
-        :return:    Numpy Array containing Temp, Press, Dens, SoundSpeed, DynVisc
+        :return:    Numpy Array containing Altitude, Temp, Press, Dens, SoundSpeed, DynVisc
         """
 
         start_idx = kwargs.get('start_index', 0)
@@ -135,21 +115,69 @@ class Atmosphere(object):
         if h > self.__Hn[-1] or h < self.__Hn[0]:
             raise ValueError("Height is out of bounds")
 
-        for self.__last_idx in range(start_idx, len(self)):
+        for self.__last_calc_idx in range(start_idx, len(self)):
 
-            if abs(h - self.__Hn[self.__last_idx +1]) < 1e-3:
-                return self.__layers[self.__last_idx ].ceiling_values
+            if abs(h - self.__Hn[self.__last_calc_idx + 1]) < 1e-3:
+                return self.__layers[self.__last_calc_idx].ceiling_values
 
-            elif abs(h - self.__Hn[self.__last_idx ]) < 1e-3:
-                return self.__layers[self.__last_idx ].base_values
+            elif abs(h - self.__Hn[self.__last_calc_idx]) < 1e-3:
+                return self.__layers[self.__last_calc_idx].floor_values
 
-            elif self.__Hn[self.__last_idx ] < h < self.__Hn[self.__last_idx  + 1]:
-                return self.__layers[self.__last_idx ].get_values_at(h)
+            elif self.__Hn[self.__last_calc_idx] < h < self.__Hn[self.__last_calc_idx + 1]:
+                return self.__layers[self.__last_calc_idx].get_values_at(h)
 
-            elif h > self.__Hn[self.__last_idx  + 1]:
+            elif h > self.__Hn[self.__last_calc_idx + 1]:
                 continue
 
         raise ValueError("Failed to calculate")
+
+    def altimeter(self, press: float, **kwargs) -> np.ndarray:
+        """
+        Calculate the altitude corresponding to given pressure and return all parameters
+        :param press:   pressure in Pa
+        :keyword start_index:   Start searching for the correct layer from given index.
+                                Can be used to speed up calculations by skipping search.
+                                Can result in ValueError if the relevant layer is skipped.
+        :return: Numpy Array containing Altitude, Temp, Press, Dens, SoundSpeed, DynVisc
+        """
+
+        start_idx = kwargs.get('start_index', 0)
+
+        if press > self.floor_values[ptype.PRESSURE.value] or press < self.ceiling_values[ptype.PRESSURE.value]:
+            raise ValueError("Pressure is out of bounds")
+
+        for self.__last_altimeter_idx in range(start_idx, len(self)):
+            layer = self.__layers[self.__last_altimeter_idx]
+            if layer.floor_values[ptype.PRESSURE.value] >= press > layer.ceiling_values[ptype.PRESSURE.value]:
+                height = layer.get_height_from_pressure(press)
+                return layer.get_values_at(height)
+
+        raise ValueError("Failed to calculate")
+
+
+    def densaltimeter(self, density: float, **kwargs) -> np.ndarray:
+        """
+        Calculate the altitude corresponding to given density and return all parameters
+        :param density:   density in kg/m^3
+        :keyword start_index:   Start searching for the correct layer from given index.
+                                Can be used to speed up calculations by skipping search.
+                                Can result in ValueError if the relevant layer is skipped.
+        :return: Numpy Array containing Altitude, Temp, Press, Dens, SoundSpeed, DynVisc
+        """
+
+        start_idx = kwargs.get('start_index', 0)
+
+        if density > self.floor_values[ptype.DENSITY.value] or density < self.ceiling_values[ptype.DENSITY.value]:
+            raise ValueError("Density is out of bounds")
+
+        for self.__last_altimeter_idx in range(start_idx, len(self)):
+            layer = self.__layers[self.__last_altimeter_idx]
+            if layer.floor_values[ptype.DENSITY.value] >= density > layer.ceiling_values[ptype.DENSITY.value]:
+                height = layer.get_height_from_density(density)
+                return layer.get_values_at(height)
+
+        raise ValueError("Failed to calculate")
+
 
     def tabulate(self, start: float, stop: float, step: float, export_as: str = None, params: Iterable[str] = None, fastcalc: bool = True) -> pd.DataFrame:
         """
@@ -177,17 +205,16 @@ class Atmosphere(object):
         result = np.zeros(table_shape, dtype=float)
 
         if fastcalc:
-            self.__last_idx = 0
+            self.__last_calc_idx = 0
 
         for idx, height in enumerate(heights):
 
             if fastcalc:
-                parameters = self.calculate(height, start_index=self.__last_idx)
+                parameters = self.calculate(height, start_index=self.__last_calc_idx)
             else:
                 parameters = self.calculate(height)
 
-            result[idx,0] = height
-            result[idx,1:] = parameters
+            result[idx,:] = parameters
 
         df_result = pd.DataFrame(data=result,
                                  index=range(0, table_shape[0]),
@@ -204,13 +231,31 @@ class Atmosphere(object):
 
         return df_result
 
+    def export_json(self, path: str) -> None:
+        """
+        Export current atmosphere as JSON object
+        :param path:
+        :return:
+        """
+        res = {
+            "g0": self.__g0,
+            "R": self.__R,
+            "gamma": self.__gamma,
+            "p0": self.__p0,
+            "d0": self.__d0,
+            "Hn": list(self.__Hn),
+            "Tn": list(self.__Tn),
+        }
+        with open(path, 'w+') as fp:
+            json.dump(res, fp, indent=4)
+
     @property
     def temperatures(self) -> np.ndarray:
         """
         Array of temperatures along layers
         :return:
         """
-        return np.array(self.__Tn)
+        return self.__Tn
 
     @property
     def altitudes(self) -> np.ndarray:
@@ -218,19 +263,23 @@ class Atmosphere(object):
         Array of altitudes of layers
         :return:
         """
-        return np.array(self.__Hn)
+        return self.__Hn
 
     @property
-    def base_values(self) -> dict:
+    def floor_values(self) -> np.ndarray:
         """
         Dictionary with the atmospheric base values
         :return:
         """
-        return {
-            'p0': self.__p0,
-            'd0': self.__d0,
-            'T0': self.__Tn[0]
-        }
+        return self.__layers[0].floor_values
+
+    @property
+    def ceiling_values(self) -> np.ndarray:
+        """
+        Dictionary with the atmospheric base values
+        :return:
+        """
+        return self.__layers[-1].ceiling_values
 
     @property
     def constants(self) -> dict:
@@ -253,7 +302,7 @@ class Atmosphere(object):
         return self.__Hn[0], self.__Hn[-1]
 
     @staticmethod
-    def __get_lapse(Hn, Tn) -> list:
+    def __get_lapse(Hn, Tn) -> np.ndarray:
         """
         Static Method to calculate the layer types of all layers
         :param Hn: Heights
@@ -278,12 +327,41 @@ class Atmosphere(object):
             elif lapse == 0:
                 types.append(LayerType.ISOTHERMAL)
 
-        return types
+        return np.array(types)
+
+    def __load(self, **kwargs):
+        """
+        Helper method to load the atmosphere model
+        """
+        classname = type(self).__name__
+        infile = kwargs.get('infile', None)
+        if infile is not None:
+            self.__is_standard_atmosphere = False
+            with open(infile, "r") as file:
+                atmosphere = json.load(file)
+            for key in atmosphere.keys():
+                setattr(self, f"_{classname}__{key}", atmosphere[key])
+        else:
+            for key in default_atmosphere.keys():
+                if key in kwargs and kwargs[key] is not None:
+                    self.__is_standard_atmosphere = False
+                    setattr(self, f"_{classname}__{key}", kwargs[key])
+                elif key in kwargs and kwargs[key] is None:
+                    setattr(self, f"_{classname}__{key}", default_atmosphere[key])
+                else:
+                    if key in kwargs and key == 'Nn' and kwargs[key] is None:
+                        setattr(self, f"_{classname}__{key}", "Noname")
+                    else:
+                        setattr(self, f"_{classname}__{key}", default_atmosphere[key])
 
     def __build(self) -> None:
         """
         Helper method to build the atmosphere object
         """
+
+        self.__Tn = np.array(self.__Tn)
+        self.__Hn = np.array(self.__Hn)
+        self.__layers = []
 
         p0, d0 = self.__p0, self.__d0
 
@@ -302,7 +380,7 @@ class Atmosphere(object):
                                     R=self.__R,
                                     gamma=self.__gamma)
 
-                T0, p0, d0, a0, mu0 = layer.ceiling_values
+                h, T0, p0, d0, a0, mu0 = layer.ceiling_values
 
             elif layer_type == LayerType.ISOTHERMAL:
 
@@ -316,7 +394,7 @@ class Atmosphere(object):
                                         R=self.__R,
                                         gamma=self.__gamma)
 
-                T0, p0, d0, a0, mu0 = layer.ceiling_values
+                h, T0, p0, d0, a0, mu0 = layer.ceiling_values
 
             else:
                 raise ValueError

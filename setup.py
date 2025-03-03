@@ -12,6 +12,7 @@ setup(
   name = 'isacalc',         # How you named your package folder (MyLib)
   packages = ['isacalc'],   # Chose the same as "name"
   package_data={'' : ['**/*.json']},
+  scripts=['isacalc/scripts/isa_main.py'],
   version = version,      # Start with a small number and increase it with every change you make
   license='GNU GPLv3',        # Chose a license from here: https://help.github.com/articles/licensing-a-repository
   description = 'Standard International Atmosphere Calculator',   # Give a short description about your library
