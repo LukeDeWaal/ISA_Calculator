@@ -87,6 +87,9 @@ params = custom_atm.densaltimeter(density=0.85) # Get params at density
 ceiling_params  = custom_atm.ceiling_values     # Get the params at max altitude
 floor_params    = custom_atm.floor_values       # Get the params at lowest altitude
 
+# Make a plot of your atmospheric parameters
+std_atm.plot_atmosphere()
+
 # Do calculations within a specific layer
 # NOTE: if the given values are outside the layer, will raise ValueError
 layer = custom_atm[0]                           # Take the first layer (Troposphere)
@@ -98,6 +101,7 @@ ceiling_params  = layer.ceiling_values          # Get params at layer's max alti
 floor_params    = layer.floor_values            # Get params at layer's min altitude
 
 ```
+![plot](doc/atmplot.png)
 
 To define a custom atmosphere in JSON format, create a file with the structure shown below.
 Any missing parameters will be taken from the standard atmosphere.

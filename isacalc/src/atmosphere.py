@@ -1,10 +1,15 @@
-from copy import copy
+
 from typing import List, Set, Union, Iterable
 
-import numpy as np
 import sys, os, json
+from copy import copy
 
+import numpy as np
 import pandas as pd
+
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
 
 from .layers import NormalLayer, IsothermalLayer, LayerType, ptype
 
@@ -61,7 +66,8 @@ class Atmosphere(object):
         self.__build()
 
         self.__last_calc_idx = 0
-        self.__last_altimeter_idx = 0
+        self.__last_alt_idx = 0
+        self.__last_dalt_idx = 0
 
 
     def __len__(self):
@@ -146,8 +152,8 @@ class Atmosphere(object):
         if press > self.floor_values[ptype.PRESSURE.value] or press < self.ceiling_values[ptype.PRESSURE.value]:
             raise ValueError("Pressure is out of bounds")
 
-        for self.__last_altimeter_idx in range(start_idx, len(self)):
-            layer = self.__layers[self.__last_altimeter_idx]
+        for self.__last_alt_idx in range(start_idx, len(self)):
+            layer = self.__layers[self.__last_alt_idx]
             if layer.floor_values[ptype.PRESSURE.value] >= press > layer.ceiling_values[ptype.PRESSURE.value]:
                 height = layer.get_height_from_pressure(press)
                 return layer.get_values_at(height)
@@ -170,8 +176,8 @@ class Atmosphere(object):
         if density > self.floor_values[ptype.DENSITY.value] or density < self.ceiling_values[ptype.DENSITY.value]:
             raise ValueError("Density is out of bounds")
 
-        for self.__last_altimeter_idx in range(start_idx, len(self)):
-            layer = self.__layers[self.__last_altimeter_idx]
+        for self.__last_dalt_idx in range(start_idx, len(self)):
+            layer = self.__layers[self.__last_dalt_idx]
             if layer.floor_values[ptype.DENSITY.value] >= density > layer.ceiling_values[ptype.DENSITY.value]:
                 height = layer.get_height_from_density(density)
                 return layer.get_values_at(height)
@@ -250,6 +256,58 @@ class Atmosphere(object):
             json.dump(res, fp, indent=4)
 
         return res
+
+    def plot_atmosphere(self, *args, **kwargs):
+        """
+        Make a simple plot of the atmospheric parameters
+        :keyword table: pd.DataFrame to take data from. Else a new table is generated.
+        :keyword start: start the plot from given height
+        :keyword stop: stop the plot at given height
+        :keyword step: step size in meters
+        :keyword logplot: plot pressure and density in a logarithmic scale
+        :return: matplotlib figure handle
+        """
+
+        table = kwargs.get('table', None)
+        start = kwargs.get('start', self.floor_values[ptype.HEIGHT.value])
+        stop = kwargs.get('stop', self.ceiling_values[ptype.HEIGHT.value])
+        step = kwargs.get('step', 100)
+        logplot = kwargs.get('logplot', False)
+
+
+        if table is None:
+            table = self.tabulate(start, stop, step)
+
+        fig, axs = plt.subplots(nrows=2, ncols=3, sharey=True)
+        axs[0,0].plot(table['Temperature [K]'], table['Height [m]'], 'r-')
+        axs[0,0].set_xlabel('Temperature [K]')
+        axs[0,0].set_ylabel('Height [m]')
+
+        axs[0,1].plot(table['Pressure [Pa]'], table['Height [m]'], 'b-')
+        axs[0,1].set_xlabel('Pressure [Pa]')
+
+        axs[0,2].plot(table['Density [kg/m^3]'], table['Height [m]'], 'k-')
+        axs[0,2].set_xlabel('Density [kg/m^3]')
+
+        if logplot:
+            axs[0,1].set_xscale('log')
+            axs[0,2].set_xscale('log')
+
+        axs[1,0].plot(table['Speed of Sound [m/s]'], table['Height [m]'], 'g-')
+        axs[1,0].set_xlabel('Speed of Sound [m/s]')
+
+        axs[1,1].plot(table['Dynamic Viscosity [kg/(m*s)]'], table['Height [m]'], 'm-')
+        axs[1,1].set_xlabel('Dynamic Viscosity [kg/(m*s)]')
+
+        axs[1,2].axis('off')
+
+        for ax in axs.flatten():
+            ax.grid(True, which='both')
+
+        return fig
+
+
+
 
     @property
     def temperatures(self) -> np.ndarray:
@@ -404,3 +462,6 @@ class Atmosphere(object):
             self.__layers.append(layer)
 
         self.__layers = np.array(self.__layers)
+
+
+
