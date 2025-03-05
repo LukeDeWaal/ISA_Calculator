@@ -62,7 +62,7 @@ class Layer(object):
         Used for pretty-printing object info
         :return:
         """
-        return f"{self.__name:<16s} | {self.__h0:10.3f} - {self.__h_max:10.3f} [m] | {self.floor_values[0]:6.2f} - {self.ceiling_values[0]:6.2f} [K]"
+        return f"{self.__name:<16s} | {self.__h0:10.3f} - {self.__h_max:10.3f} [m] | {self.floor_values[ptype.TEMPERATURE.value]:6.2f} - {self.ceiling_values[ptype.TEMPERATURE.value]:6.2f} [K]"
 
     @staticmethod
     def sutherland_viscosity(T: float, mu0: float = 1.716e-5, T0: float = 273.15, S: float = 110.4) -> float:

@@ -57,7 +57,7 @@ class Atmosphere(object):
 
         self.__Lt: np.ndarray = self.__get_lapse(self.__Hn, self.__Tn)
 
-        self.__layers: np.ndarray = None
+        self.__layers: np.ndarray[Union[NormalLayer, IsothermalLayer]] = None
         self.__build()
 
         self.__last_calc_idx = 0
@@ -231,7 +231,7 @@ class Atmosphere(object):
 
         return df_result
 
-    def export_json(self, path: str) -> None:
+    def export_json(self, path: str) -> dict:
         """
         Export current atmosphere as JSON object
         :param path:
@@ -248,6 +248,8 @@ class Atmosphere(object):
         }
         with open(path, 'w+') as fp:
             json.dump(res, fp, indent=4)
+
+        return res
 
     @property
     def temperatures(self) -> np.ndarray:
